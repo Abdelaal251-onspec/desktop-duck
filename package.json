@@ -1,16 +1,21 @@
 {
   "name": "desktop-duck",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A 3D rubber duck for your desktop",
+  "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron .",
+    "build": "electron-builder"
   },
-  "keywords": [],
+  "keywords": [
+    "duck",
+    "electron",
+    "threejs"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^41.5.0"
+    "electron": "^27.0.0"
   },
   "dependencies": {
     "three": "^0.184.0"

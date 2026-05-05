@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; }
+        html, body { 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden;
+            background: transparent;
+            -webkit-app-region: drag;
+        }
+        canvas { 
+            display: block; 
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.3));
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Define electronAPI for duck.js
+        window.electronAPI = {
+            startDrag: () => {
+                const { ipcRenderer } = require('electron');
+                ipcRenderer.send('window-drag');
+            }
+        };
+    </script>
+    <script src="three.min.js"></script>
+    <script src="duck.js"></script>
+</body>
+</html>
