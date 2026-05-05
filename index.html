@@ -9,7 +9,7 @@
             height: 100%; 
             overflow: hidden;
             background: transparent;
-            -webkit-app-region: drag;
+            /* -webkit-app-region: drag; */ /* Disabled in favor of JS dragging for better pixel-perfect interaction */
         }
         canvas { 
             display: block; 
@@ -18,16 +18,14 @@
     </style>
 </head>
 <body>
-    <script>
-        // Define electronAPI for duck.js
-        window.electronAPI = {
-            startDrag: () => {
-                const { ipcRenderer } = require('electron');
-                ipcRenderer.send('window-drag');
-            }
-        };
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./node_modules/three/build/three.module.js",
+            "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+    }
     </script>
-    <script src="three.min.js"></script>
-    <script src="duck.js"></script>
+    <script type="module" src="duck.js"></script>
 </body>
 </html>
