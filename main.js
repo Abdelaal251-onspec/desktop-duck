@@ -104,23 +104,61 @@ function createWindow() {
         }
     }, 16);
 
-    // Active window tracking (simulates looking at where you type)
+    // Advanced Caret/Active window tracking
+    // We use a more comprehensive PowerShell script to find the actual blinking caret
     setInterval(() => {
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
-            const psCommand = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); public struct R { public int L, T, Ri, B; } }'; $h = [W]::GetForegroundWindow(); $r = New-Object W+R; if ([W]::GetWindowRect($h, [ref]$r)) { echo "$($r.L) $($r.T) $($r.Ri) $($r.B)" }`;
+            const psCommand = `
+                $Signature = @'
+                using System;
+                using System.Runtime.InteropServices;
+                public class Win32 {
+                    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+                    [StructLayout(LayoutKind.Sequential)] public struct GUITHREADINFO { 
+                        public int cbSize; public int flags; public IntPtr hAct; public IntPtr hFoc; 
+                        public IntPtr hCap; public IntPtr hMenu; public IntPtr hMove; public IntPtr hCar; public RECT rc; 
+                    }
+                    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x, y; }
+                    [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint id, ref GUITHREADINFO info);
+                    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
+                    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+                    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+                }
+'@
+                Add-Type -TypeDefinition $Signature
+                $info = New-Object Win32+GUITHREADINFO
+                $info.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($info)
+                if ([Win32]::GetGUIThreadInfo(0, [ref]$info) -and $info.hCar -ne 0) {
+                    $pt = New-Object Win32+POINT
+                    $pt.x = $info.rc.L; $pt.y = $info.rc.T
+                    [Win32]::ClientToScreen($info.hCar, [ref]$pt)
+                    echo "CARET $($pt.x) $($pt.y)"
+                } else {
+                    $fg = [Win32]::GetForegroundWindow()
+                    $rect = New-Object Win32+RECT
+                    if ([Win32]::GetWindowRect($fg, [ref]$rect)) {
+                        $cx = ($rect.L + $rect.R) / 2
+                        $cy = ($rect.T + $rect.B) / 2
+                        echo "WIN $cx $cy"
+                    }
+                }
+            `.replace(/\n/g, ' ').trim();
+
             exec(`powershell -Command "${psCommand}"`, (err, stdout) => {
                 if (!err && stdout && mainWindow && !mainWindow.isDestroyed()) {
-                    const parts = stdout.trim().split(/\s+/).map(Number);
-                    if (parts.length === 4) {
+                    const line = stdout.trim().split('\n')[0];
+                    const parts = line.split(' ');
+                    if (parts.length === 3) {
                         mainWindow.webContents.send('typing-update', {
-                            x: (parts[0] + parts[2]) / 2,
-                            y: (parts[1] + parts[3]) / 2
+                            type: parts[0],
+                            x: parseFloat(parts[1]),
+                            y: parseFloat(parts[2])
                         });
                     }
                 }
             });
         }
-    }, 2000);
+    }, 500); // Check every 500ms for active typing position
 
     ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
         const win = BrowserWindow.fromWebContents(event.sender);

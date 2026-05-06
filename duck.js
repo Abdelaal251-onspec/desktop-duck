@@ -66,18 +66,23 @@ const { ipcRenderer } = require('electron');
 let lastActivityTime = Date.now();
 let lastWinX = 0, lastWinY = 0;
 
+let lastTypingTime = 0;
+let lastCaretPos = { x: 0, y: 0 };
+
 ipcRenderer.on('global-mouse-update', (event, data) => {
     lastWinX = data.winX;
     lastWinY = data.winY;
-    const centerX = data.winX + 100;
-    const centerY = data.winY + 100;
     
-    const dx = data.x - centerX;
-    const dy = data.y - centerY;
-    
-    // Update mouse positions and activity
-    mouseX = Math.max(-1, Math.min(1, dx / 400));
-    mouseY = Math.max(-1, Math.min(1, dy / 400));
+    // Only update rotation from mouse if we haven't typed in the last 2 seconds
+    if (Date.now() - lastTypingTime > 2000) {
+        const centerX = data.winX + 100;
+        const centerY = data.winY + 100;
+        const dx = data.x - centerX;
+        const dy = data.y - centerY;
+        
+        mouseX = Math.max(-1, Math.min(1, dx / 400));
+        mouseY = Math.max(-1, Math.min(1, dy / 400));
+    }
     
     lastActivityTime = Date.now();
     mouseMoving = true;
@@ -89,17 +94,29 @@ ipcRenderer.on('global-mouse-update', (event, data) => {
 
 // Typing/Active window tracking
 ipcRenderer.on('typing-update', (event, data) => {
-    // Only look at typing if mouse hasn't moved for a while (2.5s)
-    if (Date.now() - lastActivityTime > 2500) {
+    // Detect "Active" typing: If position changed significantly, user is typing
+    const distMoved = Math.sqrt(Math.pow(data.x - lastCaretPos.x, 2) + Math.pow(data.y - lastCaretPos.y, 2));
+    
+    if (distMoved > 2) { // 2px threshold for movement
+        lastTypingTime = Date.now();
+        lastCaretPos = { x: data.x, y: data.y };
+    }
+
+    // If we are in the "Active Typing" window (within 2s of last caret move)
+    if (Date.now() - lastTypingTime <= 2000) {
         const centerX = lastWinX + 100;
         const centerY = lastWinY + 100;
-        
         const dx = data.x - centerX;
         const dy = data.y - centerY;
         
-        // Target rotation based on active window
-        mouseX = Math.max(-1, Math.min(1, dx / 600));
-        mouseY = Math.max(-1, Math.min(1, dy / 600));
+        const divisor = data.type === 'CARET' ? 400 : 800;
+        mouseX = Math.max(-1, Math.min(1, dx / divisor));
+        mouseY = Math.max(-1, Math.min(1, dy / divisor));
+        
+        // Ensure the duck doesn't go into "idle" mode while typing
+        mouseMoving = true; 
+        clearTimeout(mouseStopTimer);
+        mouseStopTimer = setTimeout(() => { mouseMoving = false; }, 1500);
     }
 });
 
