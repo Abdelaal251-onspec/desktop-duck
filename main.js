@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell, nativeImage } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 
@@ -10,7 +10,9 @@ let tray;
 let hideTimeout;
 
 function createTray() {
-    tray = new Tray(path.join(__dirname, 'duck.png'));
+    const iconPath = path.join(__dirname, 'duck.png');
+    const icon = nativeImage.createFromPath(iconPath).resize({ width: 64, height: 64 });
+    tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Show Duck', click: () => mainWindow.show() },
         { type: 'separator' },
