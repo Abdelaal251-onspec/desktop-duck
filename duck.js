@@ -62,22 +62,45 @@ camera.position.z = 5;
 
 // Track global mouse movement from main process
 const { ipcRenderer } = require('electron');
+
+let lastActivityTime = Date.now();
+let lastWinX = 0, lastWinY = 0;
+
 ipcRenderer.on('global-mouse-update', (event, data) => {
+    lastWinX = data.winX;
+    lastWinY = data.winY;
     const centerX = data.winX + 100;
     const centerY = data.winY + 100;
     
     const dx = data.x - centerX;
     const dy = data.y - centerY;
     
-    // Normalize rotation based on distance
+    // Update mouse positions and activity
     mouseX = Math.max(-1, Math.min(1, dx / 400));
-    mouseY = Math.max(-1, Math.min(1, dy / 400)); // Flipped sign to fix inversion
+    mouseY = Math.max(-1, Math.min(1, dy / 400));
     
+    lastActivityTime = Date.now();
     mouseMoving = true;
     clearTimeout(mouseStopTimer);
     mouseStopTimer = setTimeout(() => {
         mouseMoving = false;
     }, 1500);
+});
+
+// Typing/Active window tracking
+ipcRenderer.on('typing-update', (event, data) => {
+    // Only look at typing if mouse hasn't moved for a while (2.5s)
+    if (Date.now() - lastActivityTime > 2500) {
+        const centerX = lastWinX + 100;
+        const centerY = lastWinY + 100;
+        
+        const dx = data.x - centerX;
+        const dy = data.y - centerY;
+        
+        // Target rotation based on active window
+        mouseX = Math.max(-1, Math.min(1, dx / 600));
+        mouseY = Math.max(-1, Math.min(1, dy / 600));
+    }
 });
 
 // Animation state

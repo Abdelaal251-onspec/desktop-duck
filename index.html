@@ -9,14 +9,10 @@
             height: 100%; 
             overflow: hidden;
             background: transparent;
-            /* Using CSS dragging as it is the most robust for touch on Windows */
-            -webkit-app-region: drag;
         }
         canvas { 
             display: block; 
             filter: drop-shadow(0 0 10px rgba(0,0,0,0.3));
-            /* Ensure the canvas itself doesn't block the drag region */
-            -webkit-app-region: no-drag;
         }
     </style>
 </head>

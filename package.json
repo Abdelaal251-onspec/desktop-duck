@@ -5,7 +5,19 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.onspec.desktop-duck",
+    "productName": "Desktop Duck",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "portable",
+      "icon": "duck.png"
+    }
   },
   "keywords": [
     "duck",
@@ -15,7 +27,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^27.0.0"
+    "electron": "^27.0.0",
+    "electron-builder": "^26.8.1"
   },
   "dependencies": {
     "three": "^0.184.0"
