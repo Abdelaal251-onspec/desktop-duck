@@ -1,16 +1,8 @@
 const { app, BrowserWindow, ipcMain, screen } = require('electron');
 
-// app.disableHardwareAcceleration(); // Uncomment this if the app still crashes
-
-// Add stability flags for GPU issues common on some Windows setups
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-direct-composition');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-gpu-rasterization');
-app.commandLine.appendSwitch('use-angle', 'd3d11');
+// Force software rendering to fix the "vector index out of bounds" and GPU crashes
+// This is necessary for stable transparent windows on many Windows GPU drivers
+app.disableHardwareAcceleration();
 
 let mainWindow;
 
@@ -58,30 +50,48 @@ function createWindow() {
         }
     });
 
-    // Handle custom dragging
+    // Handle custom dragging from renderer pointer coordinates (mouse + touch)
     let isDragging = false;
     let dragOffset = { x: 0, y: 0 };
 
-    ipcMain.on('start-drag', (event) => {
-        isDragging = true;
-        const mousePos = screen.getCursorScreenPoint();
+    function beginDragAtScreenPoint(point) {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+            return;
+        }
+
         const winPos = mainWindow.getPosition();
         dragOffset = {
-            x: mousePos.x - winPos[0],
-            y: mousePos.y - winPos[1]
+            x: point.x - winPos[0],
+            y: point.y - winPos[1]
         };
-        
-        const dragInterval = setInterval(() => {
-            if (!isDragging || mainWindow.isDestroyed()) {
-                clearInterval(dragInterval);
-                return;
-            }
-            const currentMousePos = screen.getCursorScreenPoint();
-            mainWindow.setPosition(
-                currentMousePos.x - dragOffset.x,
-                currentMousePos.y - dragOffset.y
-            );
-        }, 16);
+        isDragging = true;
+    }
+
+    ipcMain.on('start-drag-at', (_event, point) => {
+        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+            return;
+        }
+        beginDragAtScreenPoint(point);
+    });
+
+    // Backward compatibility with old renderer behavior
+    ipcMain.on('start-drag', () => {
+        const mousePos = screen.getCursorScreenPoint();
+        beginDragAtScreenPoint({ x: mousePos.x, y: mousePos.y });
+    });
+
+    ipcMain.on('drag-to', (_event, point) => {
+        if (!isDragging || !mainWindow || mainWindow.isDestroyed()) {
+            return;
+        }
+        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+            return;
+        }
+
+        mainWindow.setPosition(
+            Math.round(point.x - dragOffset.x),
+            Math.round(point.y - dragOffset.y)
+        );
     });
 
     ipcMain.on('stop-drag', () => {
