@@ -17,7 +17,14 @@
     "win": {
       "target": "portable",
       "icon": "duck.png"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Abdelaal251-onspec",
+        "repo": "desktop-duck"
+      }
+    ]
   },
   "keywords": [
     "duck",
