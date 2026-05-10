@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Bump version
         id: step1
@@ -48,6 +48,7 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
 
@@ -55,13 +56,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: release # Pull the updated version pushed by the previous job
+          ref: release
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libarchive-dev libgpgme-dev ruby-full
+          sudo gem install fpm
 
       - name: Install dependencies
         run: npm install
