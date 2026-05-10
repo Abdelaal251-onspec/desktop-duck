@@ -6,11 +6,12 @@ on:
       - release
 
 jobs:
-  build:
-    runs-on: windows-latest
+  bump-version:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-
+    outputs:
+      new_version: ${{ steps.step1.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,18 +22,40 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-with-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
+          node-version: 20
 
       - name: Bump version
+        id: step1
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           npm version patch -m "chore: bump version to %s [skip ci]"
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
           git push origin release --follow-tags
+
+  build:
+    needs: bump-version
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: release # Pull the updated version pushed by the previous job
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
 
       - name: Build and Release
         run: npm run dist -- --publish always

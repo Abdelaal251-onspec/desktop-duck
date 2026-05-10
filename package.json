@@ -18,6 +18,10 @@
       "target": "portable",
       "icon": "duck.png"
     },
+    "mac": {
+      "target": "dmg",
+      "icon": "duck.png"
+    },
     "publish": [
       {
         "provider": "github",
