@@ -1,6 +1,6 @@
 {
   "name": "desktop-duck",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A 3D rubber duck for your desktop",
   "main": "main.js",
   "scripts": {
