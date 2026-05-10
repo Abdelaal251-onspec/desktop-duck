@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell, nativeImage, dialog } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
+const fs = require('fs');
 
 // Force software rendering to fix the "vector index out of bounds" and GPU crashes
 app.disableHardwareAcceleration();
@@ -8,6 +9,27 @@ app.disableHardwareAcceleration();
 let mainWindow;
 let tray;
 let hideTimeout;
+
+const configPath = path.join(app.getPath('userData'), 'config.json');
+
+function loadConfig() {
+    try {
+        if (fs.existsSync(configPath)) {
+            return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Failed to load config', e);
+    }
+    return {};
+}
+
+function saveConfig(config) {
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+        console.error('Failed to save config', e);
+    }
+}
 
 function createTray() {
     const iconPath = path.join(__dirname, 'duck.png');
@@ -27,6 +49,32 @@ function createTray() {
 
 function getContextMenu() {
     return Menu.buildFromTemplate([
+        {
+            label: 'Change Model...',
+            click: async () => {
+                const result = await dialog.showOpenDialog(mainWindow, {
+                    properties: ['openFile'],
+                    filters: [{ name: '3D Models', extensions: ['glb', 'gltf'] }]
+                });
+                if (!result.canceled && result.filePaths.length > 0) {
+                    const modelPath = result.filePaths[0];
+                    const config = loadConfig();
+                    config.modelPath = modelPath;
+                    saveConfig(config);
+                    mainWindow.webContents.send('model-update', modelPath);
+                }
+            }
+        },
+        {
+            label: 'Reset to Default Duck',
+            click: () => {
+                const config = loadConfig();
+                delete config.modelPath;
+                saveConfig(config);
+                mainWindow.webContents.send('model-update', null);
+            }
+        },
+        { type: 'separator' },
         {
             label: 'Autostart with Windows',
             type: 'checkbox',
@@ -84,6 +132,13 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     
+    mainWindow.webContents.on('did-finish-load', () => {
+        const config = loadConfig();
+        if (config.modelPath) {
+            mainWindow.webContents.send('model-update', config.modelPath);
+        }
+    });
+
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width, height } = primaryDisplay.workAreaSize;
     mainWindow.setPosition(width - 250, height - 250);

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const { ipcRenderer } = require('electron');
+
 // Scene setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 2000); // Wider FOV and better planes for pet scale
@@ -26,26 +28,40 @@ scene.add(duck);
 
 // Load Custom GLB Duck
 const loader = new GLTFLoader();
-loader.load('rubber-duck.glb', (gltf) => {
-    const model = gltf.scene;
-    
-    const box = new THREE.Box3().setFromObject(model);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    
-    const maxDim = Math.max(size.x, size.y, size.z);
-    // Scale slightly smaller (1.8 instead of 2.0) to give padding and avoid edge clipping
-    const scale = 1.8 / maxDim; 
-    model.scale.setScalar(scale);
-    
-    model.position.x -= center.x * scale;
-    model.position.y -= center.y * scale;
-    model.position.z -= center.z * scale;
-    
-    duck.add(model);
-}, undefined, (error) => {
-    console.error('An error happened loading the GLB:', error);
-    createFallbackDuck();
+
+function loadDuck(modelPath = 'rubber-duck.glb') {
+    // Clear existing duck
+    while(duck.children.length > 0){ 
+        duck.remove(duck.children[0]); 
+    }
+
+    loader.load(modelPath, (gltf) => {
+        const model = gltf.scene;
+        
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        const maxDim = Math.max(size.x, size.y, size.z);
+        // Scale slightly smaller (1.8 instead of 2.0) to give padding and avoid edge clipping
+        const scale = 1.8 / maxDim; 
+        model.scale.setScalar(scale);
+        
+        model.position.x -= center.x * scale;
+        model.position.y -= center.y * scale;
+        model.position.z -= center.z * scale;
+        
+        duck.add(model);
+    }, undefined, (error) => {
+        console.error('An error happened loading the GLB:', error);
+        createFallbackDuck();
+    });
+}
+
+loadDuck();
+
+ipcRenderer.on('model-update', (event, path) => {
+    loadDuck(path || 'rubber-duck.glb');
 });
 
 function createFallbackDuck() {
@@ -61,7 +77,6 @@ camera.position.z = 5;
  // Move camera back slightly for better perspective
 
 // Track global mouse movement from main process
-const { ipcRenderer } = require('electron');
 
 let lastActivityTime = Date.now();
 let lastWinX = 0, lastWinY = 0;
