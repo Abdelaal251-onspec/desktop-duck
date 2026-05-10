@@ -29,18 +29,28 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          npm version patch -m "chore: bump version to %s [skip ci]"
-          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-          git push origin release --follow-tags
 
-  build:
+          # Pull latest changes and tags to avoid conflicts
+          git pull origin release --rebase --tags
+
+          # Force bump the version and manually create the tag to handle duplicates
+          NEW_VERSION=$(npm version patch --no-git-tag-version)
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git tag -f -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          git push origin release --follow-tags --force
+
+      - name: Build and Release
+
     needs: bump-version
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
     strategy:
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
 
     steps:
       - name: Checkout code
