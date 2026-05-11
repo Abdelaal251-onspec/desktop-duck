@@ -6,11 +6,106 @@ const fs = require('fs');
 // Force software rendering to fix the "vector index out of bounds" and GPU crashes
 app.disableHardwareAcceleration();
 
+const gotTheLock = app.requestSingleInstanceLock();
+const isAutostart = process.argv.includes('--autostart');
+
 let mainWindow;
 let tray;
 let hideTimeout;
 
 const configPath = path.join(app.getPath('userData'), 'config.json');
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+
+    app.on('window-all-closed', () => {
+        if (process.platform !== 'darwin') app.quit();
+    });
+
+    app.whenReady().then(() => {
+        repairLegacyDevAutostartEntry();
+        createWindow();
+        createTray();
+        
+        // If started via autostart, ensure we start hidden in the tray
+        if (isAutostart && mainWindow) {
+            mainWindow.hide();
+        }
+    });
+}
+
+function isDevRuntime() {
+    return process.defaultApp || /electron(?:\.exe)?$/i.test(path.basename(process.execPath));
+}
+
+function getExePath() {
+    // For portable apps built with electron-builder, process.execPath points to the 
+    // temporary extracted binary. We must use the original portable executable path.
+    if (process.env.PORTABLE_EXECUTABLE_FILE) {
+        return process.env.PORTABLE_EXECUTABLE_FILE;
+    }
+    return process.execPath;
+}
+
+function setAutostart(enabled) {
+    const settings = { openAtLogin: enabled };
+
+    if (enabled && process.platform === 'win32') {
+        // In development, Windows must pass the app path to electron.exe.
+        if (isDevRuntime()) {
+            settings.path = process.execPath;
+            settings.args = [app.getAppPath(), '--autostart'];
+        } else {
+            settings.path = getExePath();
+            settings.args = ['--autostart'];
+        }
+    }
+
+    app.setLoginItemSettings(settings);
+}
+
+function isAutostartEnabled() {
+    if (process.platform === 'win32' && isDevRuntime()) {
+        return app.getLoginItemSettings({
+            path: process.execPath,
+            args: [app.getAppPath(), '--autostart']
+        }).openAtLogin;
+    }
+
+    if (process.platform === 'win32' && !isDevRuntime()) {
+        return app.getLoginItemSettings({
+            path: getExePath(),
+            args: ['--autostart']
+        }).openAtLogin;
+    }
+
+    return app.getLoginItemSettings().openAtLogin;
+}
+
+function repairLegacyDevAutostartEntry() {
+    if (process.platform !== 'win32' || !isDevRuntime()) {
+        return;
+    }
+
+    const legacy = app.getLoginItemSettings({
+        path: process.execPath,
+        args: []
+    }).openAtLogin;
+
+    const current = isAutostartEnabled();
+
+    if (legacy && !current) {
+        setAutostart(true);
+    }
+}
 
 function loadConfig() {
     try {
@@ -78,12 +173,9 @@ function getContextMenu() {
         {
             label: 'Autostart with Windows',
             type: 'checkbox',
-            checked: app.getLoginItemSettings().openAtLogin,
+            checked: isAutostartEnabled(),
             click: (item) => {
-                app.setLoginItemSettings({
-                    openAtLogin: item.checked,
-                    path: app.getPath('exe')
-                });
+                setAutostart(item.checked);
             }
         },
         {
@@ -131,6 +223,16 @@ function createWindow() {
     });
 
     mainWindow.loadFile('index.html');
+
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        const isInspectShortcut =
+            (input.control && input.shift && input.key.toLowerCase() === 'i') ||
+            input.key === 'F12';
+
+        if (isInspectShortcut) {
+            event.preventDefault();
+        }
+    });
     
     mainWindow.webContents.on('did-finish-load', () => {
         const config = loadConfig();
@@ -239,12 +341,3 @@ function createWindow() {
 
     ipcMain.on('stop-drag', () => { isDragging = false; });
 }
-
-app.whenReady().then(() => {
-    createWindow();
-    createTray();
-});
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
-});
