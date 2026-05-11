@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu, Tray, shell, nativeImage, dialog, globalShortcut } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const fs = require('fs');
@@ -15,15 +15,20 @@ let hideTimeout;
 
 const configPath = path.join(app.getPath('userData'), 'config.json');
 
+function showWindow() {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+}
+
 if (!gotTheLock) {
     app.quit();
 } else {
     app.on('second-instance', () => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
-        }
+        showWindow();
     });
 
     app.on('window-all-closed', () => {
@@ -35,10 +40,19 @@ if (!gotTheLock) {
         createWindow();
         createTray();
         
+        // Register global shortcut to force show the duck (Ctrl+Alt+D)
+        globalShortcut.register('CommandOrControl+Alt+D', () => {
+            showWindow();
+        });
+
         // If started via autostart, ensure we start hidden in the tray
         if (isAutostart && mainWindow) {
             mainWindow.hide();
         }
+    });
+
+    app.on('will-quit', () => {
+        globalShortcut.unregisterAll();
     });
 }
 
@@ -131,14 +145,16 @@ function createTray() {
     const icon = nativeImage.createFromPath(iconPath).resize({ width: 64, height: 64 });
     tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Show Duck', click: () => mainWindow.show() },
+        { label: 'Show Duck', click: () => showWindow() },
         { type: 'separator' },
         { label: 'Quit', click: () => app.quit() }
     ]);
     tray.setToolTip('Desktop Duck');
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
-        mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+        if (mainWindow) {
+            mainWindow.isVisible() ? mainWindow.hide() : showWindow();
+        }
     });
 }
 
