@@ -44,11 +44,6 @@ if (!gotTheLock) {
         globalShortcut.register('CommandOrControl+Alt+D', () => {
             showWindow();
         });
-
-        // If started via autostart, ensure we start hidden in the tray
-        if (isAutostart && mainWindow) {
-            mainWindow.hide();
-        }
     });
 
     app.on('will-quit', () => {
@@ -72,8 +67,9 @@ function getExePath() {
 function setAutostart(enabled) {
     const settings = { openAtLogin: enabled };
 
-    if (enabled && process.platform === 'win32') {
-        // In development, Windows must pass the app path to electron.exe.
+    if (process.platform === 'win32') {
+        // Always pass path/args on Windows so Electron can find the correct registry entry
+        // for both setting and removing the autostart entry.
         if (isDevRuntime()) {
             settings.path = process.execPath;
             settings.args = [app.getAppPath(), '--autostart'];
@@ -232,6 +228,7 @@ function createWindow() {
         resizable: false,
         hasShadow: false,
         skipTaskbar: true,
+        show: false,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
@@ -249,8 +246,13 @@ function createWindow() {
             event.preventDefault();
         }
     });
-    
+
     mainWindow.webContents.on('did-finish-load', () => {
+        // Show here instead of ready-to-show — transparent windows on Windows
+        // don't reliably fire ready-to-show because transparent pixels don't
+        // count as a rendered frame in Electron's compositing pipeline.
+        if (!isAutostart) mainWindow.show();
+
         const config = loadConfig();
         if (config.modelPath) {
             mainWindow.webContents.send('model-update', config.modelPath);
